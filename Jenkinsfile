@@ -35,14 +35,20 @@ pipeline {
                 script {
                     echo 'Stopping and removing old container if exists...'
                     sh '''
-                        if docker ps -q -f name=${CONTAINER_NAME}; then
+                        # Check if container is running and stop it
+                        if [ "$(docker ps -q -f name=${CONTAINER_NAME})" ]; then
                             echo "Stopping running container..."
                             docker stop ${CONTAINER_NAME}
+                        else
+                            echo "No running container found"
                         fi
                         
-                        if docker ps -aq -f name=${CONTAINER_NAME}; then
+                        # Check if container exists (stopped) and remove it
+                        if [ "$(docker ps -aq -f name=${CONTAINER_NAME})" ]; then
                             echo "Removing old container..."
                             docker rm ${CONTAINER_NAME}
+                        else
+                            echo "No container to remove"
                         fi
                         
                         echo "Cleanup completed"
