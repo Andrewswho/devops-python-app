@@ -15,6 +15,21 @@ pipeline {
             }
         }
         
+        stage('Clean Docker Resources') {
+            steps {
+                script {
+                    echo 'Cleaning up Docker resources to free memory...'
+                    sh '''
+                        # Remove unused containers, networks, images
+                        docker system prune -f --volumes || true
+                        
+                        # Remove old versions of our image (keep only latest 2)
+                        docker images ${DOCKER_IMAGE} --format "table {{.Repository}}:{{.Tag}}" | tail -n +3 | xargs -r docker rmi || true
+                    '''
+                }
+            }
+        }
+        
         stage('Stop Old Container') {
             steps {
                 script {
@@ -22,12 +37,12 @@ pipeline {
                     sh '''
                         if docker ps -q -f name=${CONTAINER_NAME}; then
                             echo "Stopping running container..."
-                            docker stop ${CONTAINER_NAME} || true
+                            docker stop ${CONTAINER_NAME}
                         fi
                         
                         if docker ps -aq -f name=${CONTAINER_NAME}; then
                             echo "Removing old container..."
-                            docker rm ${CONTAINER_NAME} || true
+                            docker rm ${CONTAINER_NAME}
                         fi
                         
                         echo "Cleanup completed"
@@ -39,8 +54,14 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    echo 'Building Docker image...'
-                    sh "docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} ."
+                    echo 'Building Docker image with resource limits for t3.micro...'
+                    sh """
+                        docker build \\
+                            --memory=400m \\
+                            --memory-swap=800m \\
+                            --cpus=0.5 \\
+                            -t ${DOCKER_IMAGE}:${BUILD_NUMBER} .
+                    """
                     sh "docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest"
                 }
             }
@@ -49,11 +70,13 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    echo 'Deploying new container...'
+                    echo 'Deploying new container with resource limits...'
                     sh '''
-                        docker run -d \
-                            --name ${CONTAINER_NAME} \
-                            -p ${APP_PORT}:${APP_PORT} \
+                        docker run -d \\
+                            --name ${CONTAINER_NAME} \\
+                            --memory=300m \\
+                            --cpus=0.5 \\
+                            -p ${APP_PORT}:${APP_PORT} \\
                             ${DOCKER_IMAGE}:latest
                     '''
                 }
@@ -64,9 +87,19 @@ pipeline {
             steps {
                 script {
                     echo 'Checking application health...'
-                    sleep 10
-                    sh 'curl -f http://localhost:5000/health || exit 1'
-                    echo 'Application is healthy!'
+                    sleep 15  // Più tempo per container con risorse limitate
+                    sh '''
+                        # Verifica che il container sia in esecuzione
+                        if ! docker ps | grep ${CONTAINER_NAME}; then
+                            echo "Container not running!"
+                            docker logs ${CONTAINER_NAME}
+                            exit 1
+                        fi
+                        
+                        # Test health endpoint
+                        curl -f http://localhost:5000/health || exit 1
+                        echo "Application is healthy!"
+                    '''
                 }
             }
         }
@@ -74,11 +107,27 @@ pipeline {
     
     post {
         success {
-            echo 'Pipeline completed successfully!'
+            echo '✅ Pipeline completed successfully!'
+            echo "Application available at: http://YOUR_EC2_IP:5000"
         }
         failure {
-            echo 'Pipeline failed!'
-            sh 'docker logs ${CONTAINER_NAME} || true'
+            echo '❌ Pipeline failed!'
+            script {
+                sh '''
+                    echo "=== Container Logs ==="
+                    docker logs ${CONTAINER_NAME} || true
+                    
+                    echo "=== System Resources ==="
+                    free -h || true
+                    df -h || true
+                    
+                    echo "=== Docker Status ==="
+                    docker ps -a || true
+                '''
+            }
+        }
+        always {
+            echo 'Pipeline execution completed.'
         }
     }
 }
