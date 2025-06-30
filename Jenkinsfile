@@ -60,12 +60,11 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    echo 'Building Docker image with resource limits for t3.micro...'
+                    echo 'Building Docker image with memory limits for t3.micro...'
                     sh """
                         docker build \\
                             --memory=400m \\
                             --memory-swap=800m \\
-                            --cpus=0.5 \\
                             -t ${DOCKER_IMAGE}:${BUILD_NUMBER} .
                     """
                     sh "docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest"
@@ -76,12 +75,11 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    echo 'Deploying new container with resource limits...'
+                    echo 'Deploying new container with memory limits...'
                     sh '''
                         docker run -d \\
                             --name ${CONTAINER_NAME} \\
                             --memory=300m \\
-                            --cpus=0.5 \\
                             -p ${APP_PORT}:${APP_PORT} \\
                             ${DOCKER_IMAGE}:latest
                     '''
