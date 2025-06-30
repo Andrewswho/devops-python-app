@@ -22,12 +22,12 @@ pipeline {
                     sh '''
                         if docker ps -q -f name=${CONTAINER_NAME}; then
                             echo "Stopping running container..."
-                            docker stop ${CONTAINER_NAME}
+                            docker stop ${CONTAINER_NAME} || true
                         fi
                         
                         if docker ps -aq -f name=${CONTAINER_NAME}; then
                             echo "Removing old container..."
-                            docker rm ${CONTAINER_NAME}
+                            docker rm ${CONTAINER_NAME} || true
                         fi
                         
                         echo "Cleanup completed"
