@@ -9,7 +9,7 @@ pipeline {
         DOCKER_HUB_USERNAME = "andrewswho"
         DOCKER_HUB_IMAGE = "${DOCKER_HUB_USERNAME}/devops-python-app"
         PRODUCTION_SERVER = "56.228.27.133"
-        DEPLOY_KEY = "/home/ec2-user/.ssh/jenkins_deploy_key"
+        DEPLOY_KEY = "/home/ubuntu/.ssh/id_rsa"
     }
 
     stages {
