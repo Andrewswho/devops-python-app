@@ -73,7 +73,7 @@ pipeline {
                 script {
                     echo 'Deploying to production server...'
                     sh '''
-                        ssh -i ${DEPLOY_KEY} -o StrictHostKeyChecking=no ubuntu@${PRODUCTION_SERVER}"
+                        ssh -i ${DEPLOY_KEY} -o StrictHostKeyChecking=no ubuntu@${PRODUCTION_SERVER} "
                             echo 'Connected to production server'
                             
                             # Clean up Docker resources on production
@@ -119,7 +119,7 @@ pipeline {
                     sleep 15  // Più tempo per container con risorse limitate
                     sh '''
                         # Verifica che il container sia in esecuzione sul production server
-                        ssh -i ${DEPLOY_KEY} -o StrictHostKeyChecking=no ubuntu@${PRODUCTION_SERVER}"
+                        ssh -i ${DEPLOY_KEY} -o StrictHostKeyChecking=no ubuntu@${PRODUCTION_SERVER} "
                             if ! docker ps | grep ${CONTAINER_NAME}; then
                                 echo 'Container not running on production server!'
                                 docker logs ${CONTAINER_NAME}
@@ -146,7 +146,7 @@ pipeline {
             script {
                 sh '''
                     echo "=== Checking Production Server Status ==="
-                    ssh -i ${DEPLOY_KEY} -o StrictHostKeyChecking=no ubuntu@${PRODUCTION_SERVER}"
+                    ssh -i ${DEPLOY_KEY} -o StrictHostKeyChecking=no ubuntu@${PRODUCTION_SERVER} "
                         echo '=== Container Logs ==='
                         docker logs ${CONTAINER_NAME} || true
 
@@ -165,4 +165,3 @@ pipeline {
         }
     }
 }
-
