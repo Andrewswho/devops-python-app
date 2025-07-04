@@ -72,41 +72,43 @@ pipeline {
             steps {
                 script {
                     echo 'Deploying to production server...'
-                    sh '''
-                        ssh -i ${DEPLOY_KEY} -o StrictHostKeyChecking=no ubuntu@${PRODUCTION_SERVER} "
-                            echo 'Connected to production server'
-                            
-                            # Clean up Docker resources on production
-                            docker system prune -f --volumes || true
-                            
-                            # Stop old container (usando la tua logica esistente)
-                            if [ \\$(docker ps -q -f name=${CONTAINER_NAME}) ]; then
-                                echo 'Stopping running container...'
-                                docker stop ${CONTAINER_NAME}
-                            else
-                                echo 'No running container found'
-                            fi
+                    sshagent(credentials: ['ubuntu']) {
+                        sh '''
+                            ssh -o StrictHostKeyChecking=no ubuntu@${PRODUCTION_SERVER} "
+                                echo 'Connected to production server'
+                                
+                                # Clean up Docker resources on production
+                                docker system prune -f --volumes || true
+                                
+                                # Stop old container (usando la tua logica esistente)
+                                if [ \\$(docker ps -q -f name=${CONTAINER_NAME}) ]; then
+                                    echo 'Stopping running container...'
+                                    docker stop ${CONTAINER_NAME}
+                                else
+                                    echo 'No running container found'
+                                fi
 
-                            if [ \\$(docker ps -aq -f name=${CONTAINER_NAME}) ]; then
-                                echo 'Removing old container...'
-                                docker rm ${CONTAINER_NAME}
-                            else
-                                echo 'No container to remove'
-                            fi
+                                if [ \\$(docker ps -aq -f name=${CONTAINER_NAME}) ]; then
+                                    echo 'Removing old container...'
+                                    docker rm ${CONTAINER_NAME}
+                                else
+                                    echo 'No container to remove'
+                                fi
 
-                            # Pull new image from Docker Hub
-                            echo 'Pulling latest image from Docker Hub...'
-                            docker pull ${DOCKER_HUB_IMAGE}:latest
+                                # Pull new image from Docker Hub
+                                echo 'Pulling latest image from Docker Hub...'
+                                docker pull ${DOCKER_HUB_IMAGE}:latest
 
-                            # Deploy new container (usando i tuoi parametri di memoria)
-                            echo 'Starting new container...'
-                            docker run -d \\
-                                --name ${CONTAINER_NAME} \\
-                                --memory=300m \\
-                                -p ${APP_PORT}:${APP_PORT} \\
-                                ${DOCKER_HUB_IMAGE}:latest
-                        "
-                    '''
+                                # Deploy new container (usando i tuoi parametri di memoria)
+                                echo 'Starting new container...'
+                                docker run -d \\
+                                    --name ${CONTAINER_NAME} \\
+                                    --memory=300m \\
+                                    -p ${APP_PORT}:${APP_PORT} \\
+                                    ${DOCKER_HUB_IMAGE}:latest
+                            "
+                        '''
+                    }
                 }
             }
         }
@@ -117,20 +119,22 @@ pipeline {
                 script {
                     echo 'Checking application health on production server...'
                     sleep 15  // Più tempo per container con risorse limitate
-                    sh '''
-                        # Verifica che il container sia in esecuzione sul production server
-                        ssh -i ${DEPLOY_KEY} -o StrictHostKeyChecking=no ubuntu@${PRODUCTION_SERVER} "
-                            if ! docker ps | grep ${CONTAINER_NAME}; then
-                                echo 'Container not running on production server!'
-                                docker logs ${CONTAINER_NAME}
-                                exit 1
-                            fi
-                        "
+                    sshagent(credentials: ['ubuntu']) {
+                        sh '''
+                            # Verifica che il container sia in esecuzione sul production server
+                            ssh -o StrictHostKeyChecking=no ubuntu@${PRODUCTION_SERVER} "
+                                if ! docker ps | grep ${CONTAINER_NAME}; then
+                                    echo 'Container not running on production server!'
+                                    docker logs ${CONTAINER_NAME}
+                                    exit 1
+                                fi
+                            "
 
-                        # Test health endpoint sul production server
-                        curl -f http://${PRODUCTION_SERVER}:${APP_PORT}/health || exit 1
-                        echo "Application is healthy on production server!"
-                    '''
+                            # Test health endpoint sul production server
+                            curl -f http://${PRODUCTION_SERVER}:${APP_PORT}/health || exit 1
+                            echo "Application is healthy on production server!"
+                        '''
+                    }
                 }
             }
         }
@@ -144,20 +148,22 @@ pipeline {
         failure {
             echo '❌ Pipeline failed!'
             script {
-                sh '''
-                    echo "=== Checking Production Server Status ==="
-                    ssh -i ${DEPLOY_KEY} -o StrictHostKeyChecking=no ubuntu@${PRODUCTION_SERVER} "
-                        echo '=== Container Logs ==='
-                        docker logs ${CONTAINER_NAME} || true
+                sshagent(credentials: ['ubuntu']) {
+                    sh '''
+                        echo "=== Checking Production Server Status ==="
+                        ssh -o StrictHostKeyChecking=no ubuntu@${PRODUCTION_SERVER} "
+                            echo '=== Container Logs ==='
+                            docker logs ${CONTAINER_NAME} || true
 
-                        echo '=== System Resources ==='
-                        free -h || true
-                        df -h || true
+                            echo '=== System Resources ==='
+                            free -h || true
+                            df -h || true
 
-                        echo '=== Docker Status ==='
-                        docker ps -a || true
-                    " || true
-                '''
+                            echo '=== Docker Status ==='
+                            docker ps -a || true
+                        " || true
+                    '''
+                }
             }
         }
         always {
